@@ -1,6 +1,8 @@
 const RANDOM_ALGORITHM = true;
 const AMOUNT_OF_PROCESSES = 3;
 const TOTAL_TICKS = 10;
+const PHYSICAL_MEMORY_PAGES = 4;
+const WORKING_SET_SIZE = 2;
 
 class RandomAlgo {
     pick(pages) {
@@ -10,15 +12,54 @@ class RandomAlgo {
 }
 
 class WSClock {
+    constructor() {
+        this.hand = 0;
+    }
+
     pick(pages) {
-        // Placeholder for WSClock algorithm
-        return pages[0]; // Just return the first page for simplicity
+        const n = pages.length;
+
+        while (true) {
+            const page = pages[this.hand];
+
+            const proc = page.owner;
+            const vpn = page.vpn;
+            const vp = proc.virtualSpace.virtualPages[vpn];
+
+            console.log(
+                `WSClock: check PPN ${this.hand} (R=${vp.R}, M=${vp.M})`
+            );
+
+            // R = true
+            if (vp.R) {
+                vp.R = false;
+                this.hand = (this.hand + 1) % n;
+                continue;
+            }
+
+            // R = false M = true
+            if (vp.M) {
+                console.log(`WSClock: write-back simulated for Process ${proc.pid}, VPN ${vpn}`);
+                vp.M = false;
+                this.hand = (this.hand + 1) % n;
+                continue;
+            }
+
+            // R = 0, M = 0
+            const victim = page;
+            console.log(
+                `WSClock: selected victim PPN ${this.hand}`
+            );
+
+            this.hand = (this.hand + 1) % n;
+            return victim;
+        }
     }
 }
 
 class Kernel {
     constructor() {
-        this.physicalMemory = new PhysicalSpace(4);
+        this.physicalMemory = new PhysicalSpace();
         this.pageFaults = 0;
         this.alghorithm = RANDOM_ALGORITHM ? new RandomAlgo() : new WSClock();
     }
@@ -136,8 +177,8 @@ class PhysicalPage {
 }
 
 class PhysicalSpace {
-    constructor(size) {
-        this.size = size;
+    constructor() {
+        this.size = PHYSICAL_MEMORY_PAGES;
         this.physicalPages = Array.from({ length: this.size }, () => new PhysicalPage());
     }
 }
@@ -166,7 +207,7 @@ class Process {
         this.pid = id;
         this.ttl = 100; // Time to live in seconds
         this.virtualSpace = new VirtualSpace();
-        this.workingSetSize = 4;
+        this.workingSetSize = WORKING_SET_SIZE;
         this.workingSet = this.generateWorkingSet();
     }
 
@@ -210,4 +251,11 @@ cpu.getProcesses(processes)
 for (let tick = 0; tick < TOTAL_TICKS; tick++) {
     console.log(`Tick ${tick}: Simulating process execution...`);
     cpu.tick();
+    console.log("--------------------------");
 }
+
+// ---------- Report ----------
+console.log("=== SIMULATION COMPLETE ===");
+console.log(`Total processes remaining: ${cpu.processes.length}`);
+console.log(`Total page faults handled: ${cpu.mmu.kernel.pageFaults}`);
+console.log(`Fault rate: ${(cpu.mmu.kernel.pageFaults / (TOTAL_TICKS * AMOUNT_OF_PROCESSES)).toFixed(3)}`);
