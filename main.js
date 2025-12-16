@@ -1,4 +1,4 @@
-const RANDOM_ALGORITHM = true;
+const RANDOM_ALGORITHM = false;
 const AMOUNT_OF_PROCESSES = 3;
 const TOTAL_TICKS = 1000;
 const PHYSICAL_MEMORY_PAGES = 32;
@@ -110,9 +110,11 @@ class Kernel {
 class MMU {
     constructor(kernel) {
         this.kernel = kernel;
+        this.countAccesses = 0;
     }
 
     access(proc, vpn, write) {
+        this.countAccesses++;
         const page = proc.virtualSpace.virtualPages[vpn];
 
         if (!page.P) {
@@ -285,4 +287,4 @@ for (let tick = 0; tick <= TOTAL_TICKS; tick++) {
 // ---------- Report ----------
 console.log("=== SIMULATION COMPLETE ===");
 console.log(`Total page faults handled: ${cpu.mmu.kernel.pageFaults}`);
-console.log(`Fault rate: ${(cpu.mmu.kernel.pageFaults / (TOTAL_TICKS * AMOUNT_OF_PROCESSES)).toFixed(3)}`);
+console.log(`Fault rate: ${(cpu.mmu.kernel.pageFaults / cpu.mmu.countAccesses).toFixed(3)}`);
