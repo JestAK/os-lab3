@@ -1,8 +1,10 @@
 const RANDOM_ALGORITHM = true;
 const AMOUNT_OF_PROCESSES = 3;
-const TOTAL_TICKS = 10;
-const PHYSICAL_MEMORY_PAGES = 4;
-const WORKING_SET_SIZE = 2;
+const TOTAL_TICKS = 1000;
+const PHYSICAL_MEMORY_PAGES = 32;
+const WORKING_SET_SIZE = 12;
+const MAX_VIRTUAL_PAGES = 48;
+const WORKING_SET_CHANGE_INTERVAL = 50;
 
 class RandomAlgo {
     pick(pages) {
@@ -45,7 +47,7 @@ class WSClock {
                 continue;
             }
 
-            // R = 0, M = 0
+            // R = false, M = false
             const victim = page;
             console.log(
                 `WSClock: selected victim PPN ${this.hand}`
@@ -146,7 +148,7 @@ class CPU {
 
         proc.ttl--;
 
-        if (proc.ttl < 0) {
+        if (proc.ttl < 1) {
             console.log(`Process ${proc.pid} terminated.`);
             this.processes.splice(this.current, 1);
 
@@ -166,6 +168,10 @@ class CPU {
 
     getProcesses(processes) {
         this.processes = processes;
+    }
+
+    runSystemProcesses() {
+        console.log("Running system processes...");
     }
 }
 
@@ -194,18 +200,17 @@ class VirtualPage {
 
 class VirtualSpace {
     constructor() {
-        this.size = 16; // Number of virtual pages
+        this.size =  Math.floor(Math.random() * MAX_VIRTUAL_PAGES) + 1; // Number of virtual pages
         this.virtualPages = Array.from({ length: this.size }, () => new VirtualPage());
     }
 
 
 }
 
-
 class Process {
     constructor(id) {
         this.pid = id;
-        this.ttl = 100; // Time to live in seconds
+        this.ttl = Math.floor(Math.random() * TOTAL_TICKS) + 1; // Time to live in seconds
         this.virtualSpace = new VirtualSpace();
         this.workingSetSize = WORKING_SET_SIZE;
         this.workingSet = this.generateWorkingSet();
@@ -213,11 +218,24 @@ class Process {
 
     generateWorkingSet() {
         const set = new Set();
+
+        // If virtual space size less than working set size, include all pages
+        if (this.virtualSpace.size <= this.workingSetSize) {
+            for (let i = 0; i < this.virtualSpace.size; i++) {
+                set.add(i);
+            }
+            return Array.from(set);
+        }
         while (set.size < this.workingSetSize) {
             const page = Math.floor(Math.random() * this.virtualSpace.size);
             set.add(page);
         }
         return Array.from(set);
+    }
+
+    updateWorkingSet() {
+        this.workingSet = this.generateWorkingSet();
+        console.log(`Process ${this.pid} updated working set: [${this.workingSet.join(", ")}]`);
     }
 
     work() {
@@ -248,14 +266,23 @@ for (let i = 0; i < AMOUNT_OF_PROCESSES; i++) {
 
 cpu.getProcesses(processes)
 
-for (let tick = 0; tick < TOTAL_TICKS; tick++) {
+for (let tick = 0; tick <= TOTAL_TICKS; tick++) {
+    if (tick % WORKING_SET_CHANGE_INTERVAL === 0) {
+        for (const p of cpu.processes) {
+            p.updateWorkingSet();
+        }
+    }
+
     console.log(`Tick ${tick}: Simulating process execution...`);
-    cpu.tick();
+    if (tick % 10 === 0) {
+        cpu.runSystemProcesses();
+    } else {
+        cpu.tick();
+    }
     console.log("--------------------------");
 }
 
 // ---------- Report ----------
 console.log("=== SIMULATION COMPLETE ===");
-console.log(`Total processes remaining: ${cpu.processes.length}`);
 console.log(`Total page faults handled: ${cpu.mmu.kernel.pageFaults}`);
 console.log(`Fault rate: ${(cpu.mmu.kernel.pageFaults / (TOTAL_TICKS * AMOUNT_OF_PROCESSES)).toFixed(3)}`);
